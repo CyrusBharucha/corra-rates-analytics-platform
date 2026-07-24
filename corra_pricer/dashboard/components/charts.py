@@ -1,9 +1,5 @@
-"""
-Plotly chart builders. Every function here takes already-computed backend
-objects (a YieldCurve, a RiskReport, a ScenarioResult, a DataFrame) and only
-reads/reshapes them for display -- no pricing or risk computation happens
-in this file.
-"""
+"""Plotly chart builders. All computation happens in the backend; this file
+only reads and reshapes already-computed objects for display."""
 from __future__ import annotations
 
 import numpy as np
@@ -19,12 +15,6 @@ _FONT = dict(family="IBM Plex Sans, sans-serif", size=13, color="#17211B")
 
 def _base_layout(fig: go.Figure, title: str, yaxis_title: str | None = "", xaxis_title: str = "",
                   height: int = 520) -> go.Figure:
-    # The legend sits below the plot (negative y, in the bottom margin)
-    # rather than stacked above it near the title -- a top-anchored legend
-    # at y=1.02 collided with the title text whenever the title ran long
-    # or the plot area was narrow, since both were competing for the same
-    # ~55px top margin. Bottom placement can never collide with the title
-    # regardless of title length.
     layout_kwargs = dict(
         template=_TEMPLATE,
         title=dict(text=title, font=dict(size=15, family="Inter, sans-serif"), y=0.97, yanchor="top"),
@@ -44,9 +34,7 @@ def _base_layout(fig: go.Figure, title: str, yaxis_title: str | None = "", xaxis
     fig.update_layout(**layout_kwargs)
     fig.update_xaxes(gridcolor="rgba(19,30,23,0.12)", zeroline=False)
     fig.update_yaxes(gridcolor="rgba(19,30,23,0.12)", zeroline=False)
-    # Plotly's horizontal legend packs entries with only a couple of px between
-    # them -- pad each trace's own name (invisible trailing whitespace) so
-    # adjacent legend entries get real breathing room instead of touching.
+    # Pad trace names so horizontal legend entries don't crowd each other.
     for trace in fig.data:
         if trace.showlegend is not False and trace.name:
             trace.name = f"{trace.name}   "
@@ -71,15 +59,15 @@ def plot_yield_curve(curve, label: str = "Curve", max_years: float = 30.0) -> go
         marker=dict(color=_ACCENT, size=12, symbol="diamond", line=dict(color="#ECEFE8", width=1.5)),
         hovertemplate="Node: %{x:.2f}Y &nbsp;→&nbsp; %{y:.3f}%<extra></extra>",
     ))
-    return _base_layout(fig, f"GoC-Proxy OIS Zero Curve ({curve.interpolation})",
-                         "Zero Rate (%)", "Tenor (years)", height=660)
+    return _base_layout(fig, f"Bootstrapped GoC-Proxy OIS Zero Curve ({curve.interpolation})",
+                         "Zero Rate (%)", "Tenor (years)", height=560)
 
 
-def plot_curve_comparison(curves: dict, max_years: float = 30.0) -> go.Figure:
-    """curves: {label: YieldCurve or ShockedCurve}. Bootstrap-node markers are
-    only drawn for objects that expose .times/.zero_rates (plain YieldCurve) --
-    a ShockedCurve (e.g. a scenario-shocked curve) only guarantees
-    zero_rate(t)/discount_factor(t), so it's plotted as a smooth line only."""
+def plot_curve_comparison(curves: dict, max_years: float = 30.0,
+                          title: str = "Curve Evolution") -> go.Figure:
+    """curves: {label: YieldCurve or ShockedCurve}. Node markers only drawn
+    for plain YieldCurve (exposes .times/.zero_rates); shocked curves are
+    smooth lines only."""
     fig = go.Figure()
     smooth_t = np.linspace(0.1, max_years, 200)
     for i, (label, curve) in enumerate(curves.items()):
@@ -96,7 +84,7 @@ def plot_curve_comparison(curves: dict, max_years: float = 30.0) -> go.Figure:
                 marker=dict(color=color, size=7, symbol="diamond", line=dict(color="#ECEFE8", width=1)),
                 hoverinfo="skip",
             ))
-    return _base_layout(fig, "Curve Evolution", "Zero Rate (%)", "Tenor (years)", height=560)
+    return _base_layout(fig, title, "Zero Rate (%)", "Tenor (years)", height=560)
 
 
 def plot_krd_bar(risk_report) -> go.Figure:
@@ -106,9 +94,9 @@ def plot_krd_bar(risk_report) -> go.Figure:
     fig = go.Figure(go.Bar(
         x=buckets, y=values, marker_color=colors, marker_line_width=0,
         text=[f"${v:,.0f}" for v in values], textposition="outside",
-        hovertemplate="%{x} bucket: $%{y:,.2f} / bp<extra></extra>",
+        hovertemplate="%{x} bucket: $%{y:,.2f}/bp<extra></extra>",
     ))
-    return _base_layout(fig, "Key-Rate DV01 by Bucket", "DV01 ($ per 1bp)", "")
+    return _base_layout(fig, "Key-Rate DV01 by Bucket", "DV01 ($/bp)", "")
 
 
 def plot_krd_waterfall(risk_report) -> go.Figure:
@@ -127,7 +115,7 @@ def plot_krd_waterfall(risk_report) -> go.Figure:
         totals=dict(marker=dict(color=_ACCENT)),
         hovertemplate="%{x}: $%{y:,.2f}<extra></extra>",
     ))
-    return _base_layout(fig, "Key-Rate DV01 Contribution to Total", "DV01 ($ per 1bp)", "")
+    return _base_layout(fig, "Key-Rate DV01 Contribution to Total", "DV01 ($/bp)", "")
 
 
 def plot_scenario_grid(scenario_df, labeller=None) -> go.Figure:
@@ -172,30 +160,19 @@ def plot_scenario_waterfall(scenario_result) -> go.Figure:
 
 
 def plot_npv_dv01_comparison(comparison_df) -> go.Figure:
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=comparison_df["label"], y=comparison_df["npv"], name="NPV ($)",
-        marker_color=_ACCENT, marker_line_width=0, yaxis="y1",
-        hovertemplate="%{x}<br>NPV: $%{y:,.0f}<extra></extra>",
-    ))
-    fig.add_trace(go.Bar(
+    """DV01 bar chart across historical dates. NPV is omitted because when
+    struck at fair rate it is always $0, showing it would just be noise."""
+    fig = go.Figure(go.Bar(
         x=comparison_df["label"], y=comparison_df["dv01"], name="DV01 ($/bp)",
-        marker_color="#BE9A57", marker_line_width=0, yaxis="y2",
-        hovertemplate="%{x}<br>DV01: $%{y:,.2f}<extra></extra>",
+        marker_color="#BE9A57", marker_line_width=0,
+        hovertemplate="%{x}<br>DV01: $%{y:,.2f}/bp<extra></extra>",
+        text=[f"${v:,.0f}" for v in comparison_df["dv01"]], textposition="outside",
     ))
-    fig.update_layout(
-        yaxis=dict(title="NPV ($)", gridcolor="rgba(19,30,23,0.12)"),
-        yaxis2=dict(title="DV01 ($/bp)", overlaying="y", side="right", gridcolor="rgba(0,0,0,0)"),
-        barmode="group",
-        hovermode="x",
-    )
-    return _base_layout(fig, "NPV and DV01 by Date", yaxis_title=None)
+    fig.update_layout(hovermode="x")
+    return _base_layout(fig, "DV01 by Date", "DV01 ($/bp)", "")
 
 
 def plot_discount_factor_curve(curve, max_years: float = 30.0) -> go.Figure:
-    """Samples curve.discount_factor(t) -- an existing Module 2 method --
-    across the curve. No new pricing logic, just a view the dashboard
-    hadn't shown before."""
     smooth_t = np.linspace(0.0, max_years, 200)
     smooth_df = [curve.discount_factor(t) for t in smooth_t]
     fig = go.Figure(go.Scatter(
@@ -208,10 +185,6 @@ def plot_discount_factor_curve(curve, max_years: float = 30.0) -> go.Figure:
 
 
 def plot_forward_curve(curve, max_years: float = 29.75, window: float = 0.25) -> go.Figure:
-    """Rolling `window`-year forward rate starting at each t, i.e. the
-    market's implied forward CORRA path -- computed entirely from
-    curve.forward_rate(t, t+window), an existing Module 2 method that
-    was never surfaced anywhere in the dashboard before."""
     starts = np.linspace(0.1, max_years, 200)
     fwd = [curve.forward_rate(t, t + window) * 100 for t in starts]
     fig = go.Figure(go.Scatter(
@@ -220,7 +193,7 @@ def plot_forward_curve(curve, max_years: float = 29.75, window: float = 0.25) ->
         hovertemplate="Start %{x:.1f}Y &nbsp;→&nbsp; %{y:.3f}%<extra></extra>",
     ))
     fig.add_trace(go.Scatter(
-        x=curve.times, y=curve.zero_rates * 100, mode="lines", name="Zero curve (reference)",
+        x=curve.times, y=curve.zero_rates * 100, mode="lines", name="Zero Curve (reference)",
         line=dict(color=_ACCENT, width=1.5, dash="dot"),
         hovertemplate="%{x:.1f}Y zero &nbsp;→&nbsp; %{y:.3f}%<extra></extra>",
     ))
@@ -229,29 +202,30 @@ def plot_forward_curve(curve, max_years: float = 29.75, window: float = 0.25) ->
 
 
 def plot_bootstrap_residuals(residuals: dict) -> go.Figure:
-    """residuals: {tenor: price - 100} from curve_builder.bootstrap.reprice_par_bonds().
-    Should sit at/near zero for every tenor -- this is a quality-control
-    view proving the bootstrap actually converged, not a new calculation."""
-    tenors = list(residuals.keys())
+    """residuals: {tenor: price - 100}. Near-zero bars confirm the bootstrap
+    converged; any large bar means a par bond doesn't reprice to par."""
+    _TENOR_LABELS = {"LONG": "30Y"}
+    tenors = [_TENOR_LABELS.get(t, t) for t in residuals.keys()]
     values = list(residuals.values())
     colors = [_POSITIVE if abs(v) < 0.05 else ("#BE9A57" if abs(v) < 0.5 else _NEGATIVE) for v in values]
+    labels = ["≈ 0" if abs(v) < 1e-4 else f"{v:+.4f}" for v in values]
     fig = go.Figure(go.Bar(
         x=tenors, y=values, marker_color=colors, marker_line_width=0,
-        text=[f"{v:+.4f}" for v in values], textposition="outside",
-        hovertemplate="%{x}: reprice error %{y:+.4f} per $100 face<extra></extra>",
+        text=labels, textposition="outside",
+        hovertemplate="%{x}: reprice error %{y:.2e} per $100 face<extra></extra>",
     ))
     fig.add_hline(y=0, line_color="rgba(19,30,23,0.32)")
-    return _base_layout(fig, "Bootstrap Diagnostic: Par Bond Repricing Error",
-                         "Price − 100 (per $100 face)", "", height=470)
+    _base_layout(fig, "Bootstrap Diagnostic: Par Bond Repricing Error",
+                 "Price − 100 (per $100 face)", "", height=520)
+    fig.update_yaxes(range=[-1, 1], tickformat=".2f")
+    return fig
 
 
 def plot_interpolation_divergence(curves: dict, reference: str = "linear", max_years: float = 30.0,
                                    labels: dict | None = None) -> go.Figure:
-    """curves: {method_name: YieldCurve}. Plots each method's zero rate minus
-    the reference method's zero rate, in bp, across the curve -- shows
-    exactly where and how much interpolation choice matters. `labels` maps
-    the raw method_name keys (needed functionally to look up the reference
-    curve) to display-friendly names for the legend/title only."""
+    """curves: {method_name: YieldCurve}. Each non-reference curve is plotted
+    as (zero_rate - reference_zero_rate) in bp, showing where interpolation
+    choice actually affects pricing."""
     labels = labels or {}
     smooth_t = np.linspace(0.1, max_years, 200)
     ref_curve = curves[reference]
@@ -270,15 +244,13 @@ def plot_interpolation_divergence(curves: dict, reference: str = "linear", max_y
         ))
     fig.add_hline(y=0, line_color="rgba(19,30,23,0.32)")
     return _base_layout(fig, f"Interpolation Method Divergence (vs. {labels.get(reference, reference)})",
-                         "Difference (bp)", "Tenor (years)", height=470)
+                         "Difference (bp)", "Tenor (years)", height=520)
 
 
 def plot_krd_heatmap(heatmap_data: dict, title: str = "Key-Rate DV01 Heatmap Across Swap Tenors",
                       row_label: str = "Swap Tenor", row_hover_label: str = "Swap tenor") -> go.Figure:
-    """heatmap_data: {row_label: {bucket_label: krd_value}}, e.g. from
-    data_access.get_krd_heatmap_data() (rows = swap tenors) or
-    get_historical_krd_heatmap() (rows = historical dates) -- same chart,
-    generalized so both reuse it rather than duplicating heatmap code."""
+    """heatmap_data: {row_label: {bucket_label: krd_value}}. Works for both
+    swap-tenor rows (Risk page) and historical-date rows (Historical Replay)."""
     rows = list(heatmap_data.keys())
     buckets = list(next(iter(heatmap_data.values())).keys())
     z = [[heatmap_data[r][b] for b in buckets] for r in rows]
@@ -287,12 +259,10 @@ def plot_krd_heatmap(heatmap_data: dict, title: str = "Key-Rate DV01 Heatmap Acr
         hovertemplate=f"{row_hover_label} " + "%{y}, bucket %{x}: $%{z:,.0f}/bp<extra></extra>",
         colorbar=dict(title="DV01 ($/bp)"),
     ))
-    return _base_layout(fig, title, row_label, "Curve Bucket", height=470)
+    return _base_layout(fig, title, row_label, "Curve Bucket", height=540)
 
 
 def plot_monte_carlo_histogram(mc_df) -> go.Figure:
-    """mc_df: DataFrame from scenario_engine.run_monte_carlo_scenarios(),
-    with an 'npv_change' column per simulation."""
     npv = mc_df["npv_change"]
     fig = go.Figure(go.Histogram(
         x=npv, nbinsx=40, marker_color=_ACCENT, opacity=0.85,
@@ -309,11 +279,8 @@ def plot_monte_carlo_histogram(mc_df) -> go.Figure:
 
 
 def plot_curve_animation(curves: dict, max_years: float = 30.0) -> go.Figure:
-    """curves: {label: YieldCurve}, in chronological order. Builds a single
-    Plotly figure with one frame per date and a slider + play/pause
-    controls -- the actual "curve evolution movie." Each frame just reuses
-    curve.zero_rate(t), the same sampling plot_yield_curve already does for
-    a single curve; the only new thing here is the frames/slider wiring."""
+    """curves: {label: YieldCurve}, in chronological order. One Plotly frame
+    per date with a slider and play/pause controls."""
     smooth_t = np.linspace(0.1, max_years, 150)
     labels = list(curves.keys())
 
@@ -362,9 +329,7 @@ def plot_curve_animation(curves: dict, max_years: float = 30.0) -> go.Figure:
 
 
 def plot_metric_timeline(comparison_df) -> go.Figure:
-    """Dual-axis line chart of fair rate and DV01 across the (chronologically
-    ordered) rows of a historical comparison DataFrame -- the same data the
-    NPV/DV01 bar chart uses, shown as an actual time series instead."""
+    """Dual-axis fair rate and DV01 time series across historical dates."""
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=comparison_df["label"], y=comparison_df["fair_rate_pct"], name="Fair Rate (%)",

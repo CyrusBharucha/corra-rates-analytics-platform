@@ -4,19 +4,19 @@ Day count: ACT/365F is the CORRA OIS market standard and remains the
 default and the only day count used for discounting time-to-cashflow
 (the curve's own time convention). ACT/360, 30/360, and ACT/ACT are also
 available and selectable for the FIXED LEG's accrual calculation
-specifically (see DAYCOUNT_CONVENTIONS) -- a genuine, if somewhat unusual,
+specifically (see DAYCOUNT_CONVENTIONS) - a genuine, if somewhat unusual,
 choice for a CORRA OIS in practice, but exposed here for realism/
 completeness since production systems do support day-count selection per
 leg. The floating leg's day count is not separately selectable: this
 platform's floating leg uses the single-curve telescoping identity
 (notional x [DF(start) - DF(end)]), which is a pure discount-factor
 relationship with no explicit day-count-dependent compounding calculation
-to select a convention for -- see pricing_engine/ois_swap.py.
+to select a convention for - see pricing_engine/ois_swap.py.
 
 Business day adjustment and calendars are documented in calendars.py.
 Defaults for every new parameter below (day count, business day
 convention, calendar, stub) reproduce the platform's original ACT/365F,
-unadjusted, short-first-stub behavior exactly -- existing callers are
+unadjusted, short-first-stub behavior exactly - existing callers are
 unaffected unless they opt into the new options.
 """
 from __future__ import annotations

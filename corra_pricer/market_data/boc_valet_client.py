@@ -1,13 +1,12 @@
 """
 Thin client for the Bank of Canada Valet API (https://www.bankofcanada.ca/valet/docs).
 
-The Valet API is free, public, and requires no API key. This client pulls two
-data sets used throughout the platform:
+Pulls two data sets:
 
-1. CORRA fixings (group "CORRA", series "AVG.INTWO") -- the daily overnight
+1. CORRA fixings (group "CORRA", series "AVG.INTWO") - the daily overnight
    rate used for floating-leg compounding.
 2. Government of Canada benchmark bond yields (group "bond_yields_benchmark")
-   -- used as bootstrap inputs for the discounting curve, since real CORRA OIS
+   - used as bootstrap inputs for the discounting curve, since real CORRA OIS
    swap quotes are not published anywhere public (they live on Bloomberg /
    Refinitiv). See docs/methodology.md for the swap-spread discussion.
 """

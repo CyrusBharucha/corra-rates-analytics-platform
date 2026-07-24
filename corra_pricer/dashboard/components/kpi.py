@@ -1,5 +1,5 @@
 """
-Styled KPI card row -- replaces st.metric's default look with rounded,
+Styled KPI card row - replaces st.metric's default look with rounded,
 bordered cards matching the platform's dark, institutional theme.
 Presentation only: takes already-computed values, renders HTML.
 """

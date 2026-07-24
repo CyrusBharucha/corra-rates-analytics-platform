@@ -18,7 +18,13 @@ _ensure_project_root_on_path()
 import streamlit as st
 
 from corra_pricer.dashboard.components import charts, data_access, kpi, styling, tables
+
 from corra_pricer.pricing_engine.conventions import year_fraction
+
+# Read via getattr so a stale cached copy of data_access (Streamlit keeps deep
+# modules imported across reruns) degrades to the raw calendar key instead of
+# raising AttributeError and taking the whole page down.
+_CALENDAR_LABELS = getattr(data_access, "CALENDAR_LABELS", {})
 
 styling.apply_page_config("Pricing")
 styling.render_header("Pricing", "Price a vanilla Canadian CORRA OIS off the live curve")
@@ -51,7 +57,7 @@ with left:
 
         tenor_label = st.selectbox("Tenor", list(data_access.TENORS_YEARS.keys()), index=3)
         freq_label = st.selectbox("Payment frequency", list(data_access.PAYMENT_FREQUENCIES.keys()), index=0)
-        notional = st.number_input("Notional ($)", min_value=1_000, value=10_000_000, step=100_000)
+        notional = st.number_input("Notional ($)", min_value=1_000, value=10_000_000, step=1_000)
         pay_fixed = st.radio("Direction", ["Pay Fixed", "Receive Fixed"]) == "Pay Fixed"
         price_at_fair = st.checkbox("Price at fair (par) rate", value=True)
         fixed_rate_input = st.number_input(
@@ -74,6 +80,7 @@ with left:
                                 help="How a payment date that lands on a weekend/holiday gets moved "
                                      "to a real business day.")
             calendar_name = st.selectbox("Calendar", data_access.CALENDAR_CHOICES,
+                                          format_func=lambda c: _CALENDAR_LABELS.get(c, c),
                                           index=0 if bdc != "None" else data_access.CALENDAR_CHOICES.index("Weekend Only"))
 
         tenor_years = data_access.TENORS_YEARS[tenor_label]
@@ -97,25 +104,32 @@ with right:
     with st.container(border=True):
         kpi.render_kpi_row([
             {"label": "Fair Rate", "value": f"{summary['fair_rate_pct']:.4f}%",
-             "help": "The fixed rate that makes NPV = 0 today -- the par/mid market rate for this swap."},
-            {"label": "Fixed Rate", "value": f"{summary['fixed_rate_pct']:.4f}%"},
-            {"label": "Direction", "value": "Pay Fixed" if pay_fixed else "Receive Fixed"},
+             "delta": "par / mid market", "delta_color": "neutral",
+             "help": "The fixed rate that makes NPV = 0 today, the par/mid market rate for this swap."},
+            {"label": "Fixed Rate", "value": f"{summary['fixed_rate_pct']:.4f}%",
+             "delta": "at fair" if price_at_fair else "user specified", "delta_color": "neutral"},
+            {"label": "Direction", "value": "Pay Fixed" if pay_fixed else "Receive Fixed",
+             "delta": "gains if rates rise" if pay_fixed else "gains if rates fall",
+             "delta_color": "neutral"},
         ])
         st.write("")
         npv_display = kpi.snap_zero(summary["npv"])
         kpi.render_kpi_row([
             {
                 "label": "NPV", "value": kpi.money(summary["npv"]),
-                "delta": "In your favour" if npv_display >= 0 else "Against your favour",
+                "delta": "In your favour" if npv_display >= 0 else "Against you",
                 "delta_color": "positive" if npv_display >= 0 else "negative",
                 "help": "Net present value: what this swap is worth to unwind today, given the "
                         "fixed rate vs. the curve's current fair rate.",
             },
-            {"label": "Fixed Leg PV", "value": f"${summary['fixed_leg_pv']:,.0f}"},
-            {"label": "Floating Leg PV", "value": f"${summary['floating_leg_pv']:,.0f}"},
+            {"label": "Fixed Leg PV", "value": f"${summary['fixed_leg_pv']:,.0f}",
+             "delta": "you pay" if pay_fixed else "you receive", "delta_color": "neutral"},
+            {"label": "Floating Leg PV", "value": f"${summary['floating_leg_pv']:,.0f}",
+             "delta": "you receive" if pay_fixed else "you pay", "delta_color": "neutral"},
         ])
         st.caption(f"{summary['num_payments']} payment(s) over the life of the swap")
 
+st.write("")
 st.write("")
 tab_summary, tab_schedule, tab_disc, tab_fwd, tab_val, tab_assump = st.tabs(
     ["Summary", "Cashflow Schedule", "Discount Curve", "Forward Curve",
@@ -132,17 +146,17 @@ with tab_summary:
     )
     st.caption(
         "NPV is the fair-value difference between the fixed rate you're paying/receiving and the "
-        "curve's current fair rate, discounted back through the annuity -- it's what this swap "
+        "curve's current fair rate, discounted back through the annuity, it's what this swap "
         "would be worth to unwind today, not a cash payment."
     )
 
 with tab_schedule:
-    st.caption("Every fixed-leg payment period: accrual, discount factor, and PV -- the same "
+    st.caption("Every fixed-leg payment period: accrual, discount factor, and PV, the same "
                "building blocks fixed_leg_pv() sums internally, broken out row by row.")
-    st.dataframe(tables.format_cashflow_schedule(swap, curve), use_container_width=True, hide_index=True)
+    st.table(tables.format_cashflow_schedule(swap, curve))
     st.caption("Floating leg PV uses the single-curve telescoping identity "
                "(notional × [DF(start) − DF(end)]) rather than a period-by-period cashflow "
-               "projection -- see the Assumptions tab.")
+               "projection, see the Assumptions tab.")
 
 with tab_disc:
     st.plotly_chart(charts.plot_discount_factor_curve(curve), use_container_width=True,
@@ -150,7 +164,7 @@ with tab_disc:
 
 with tab_fwd:
     st.plotly_chart(charts.plot_forward_curve(curve), use_container_width=True, config=charts.PLOTLY_CONFIG)
-    st.caption("The market-implied 3-month forward CORRA path -- the rate the curve says should "
+    st.caption("The market-implied 3-month forward CORRA path, the rate the curve says should "
                "prevail for a 3-month period starting at each point in time, derived purely from "
                "today's discount factors (no separate forecasting model).")
 
@@ -160,14 +174,19 @@ with tab_val:
     annuity = swap.annuity(curve)
     spread_bp = (swap.fixed_rate - fair_rate) * 10_000
     kpi.render_kpi_row([
-        {"label": "Trade Date", "value": swap.trade_date.isoformat()},
-        {"label": "Effective (Settlement) Date", "value": swap.effective_date.isoformat()},
-        {"label": "Curve Date", "value": str(data_access.get_market_snapshot()["as_of_yields"].date())},
+        {"label": "Trade Date", "value": swap.trade_date.isoformat(),
+         "delta": "when the swap is struck", "delta_color": "neutral"},
+        {"label": "Effective (Settlement) Date", "value": swap.effective_date.isoformat(),
+         "delta": f"spot lag {spot_lag_label}", "delta_color": "neutral"},
+        {"label": "Curve Date", "value": str(data_access.get_market_snapshot()["as_of_yields"].date()),
+         "delta": "market data as of", "delta_color": "neutral"},
     ])
     st.write("")
     kpi.render_kpi_row([
-        {"label": "Total Discount Factor (to maturity)", "value": f"{total_df:.6f}"},
-        {"label": "Annuity Factor ($1 running coupon PV)", "value": f"{annuity:.6f}"},
+        {"label": "Total Discount Factor (to maturity)", "value": f"{total_df:.6f}",
+         "delta": "PV of $1 at maturity", "delta_color": "neutral"},
+        {"label": "Annuity Factor ($1 running coupon PV)", "value": f"{annuity:.6f}",
+         "delta": "fair rate denominator", "delta_color": "neutral"},
         {"label": "Fixed vs. Fair Spread", "value": f"{spread_bp:+.2f} bp",
          "delta": "fixed rate minus fair rate", "delta_color": "neutral"},
     ])
@@ -178,10 +197,10 @@ with tab_assump:
 - **Fixed leg day count**: {daycount}
 - **Payment frequency**: {freq_label}
 - **Stub**: {data_access.STUB_LABELS[stub]}
-- **Business day convention**: {bdc} &nbsp; **Calendar**: {calendar_name} (approximate, not sourced from an official Payments Canada/ECB feed)
+- **Business day convention**: {bdc} &nbsp; **Calendar**: {_CALENDAR_LABELS.get(calendar_name, calendar_name)} (approximate, not sourced from an official Payments Canada/ECB feed)
 - **Spot lag**: {spot_lag_label} &nbsp; **Start type**: {start_type}
 - **Discounting curve**: bootstrapped from Bank of Canada GoC benchmark bond yields, used as an OIS proxy (live CORRA OIS swap quotes are not publicly available)
-- **Floating leg**: single-curve telescoping identity, notional × (DF(start) − DF(end)) -- exact under single-curve discounting. Its day count is not separately selectable: the telescoping identity is a pure discount-factor relationship with no explicit compounding calculation to apply a convention to.
+- **Floating leg**: single-curve telescoping identity, notional × (DF(start) − DF(end)), exact under single-curve discounting. Its day count is not separately selectable: the telescoping identity is a pure discount-factor relationship with no explicit compounding calculation to apply a convention to.
 - **Discounting time-to-cashflow**: always ACT/365 Fixed (the curve's own time convention), independent of the fixed leg's accrual day count above.
 - **Curve interpolation**: linear on zero rate (Market page lets you compare log-linear-DF and cubic spline)
 """

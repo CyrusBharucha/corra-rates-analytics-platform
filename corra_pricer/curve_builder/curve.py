@@ -7,12 +7,24 @@ via DF(t) = exp(-z(t) * t).
 """
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
+
 import numpy as np
 
 from corra_pricer.curve_builder.interpolation import INTERPOLATORS
 
 
-class YieldCurve:
+class BaseYieldCurve(ABC):
+    """Abstract interface every curve implementation must satisfy."""
+
+    @abstractmethod
+    def zero_rate(self, t: float) -> float: ...
+
+    @abstractmethod
+    def discount_factor(self, t: float) -> float: ...
+
+
+class YieldCurve(BaseYieldCurve):
     def __init__(
         self,
         times: np.ndarray,
@@ -41,7 +53,7 @@ class YieldCurve:
         return float(np.exp(-self.zero_rate(t) * t))
 
     def forward_rate(self, t1: float, t2: float) -> float:
-        """Continuously-compounded simple forward rate between t1 and t2 (t2 > t1)."""
+        """Simple annualized forward rate between t1 and t2 (t2 > t1)."""
         if t2 <= t1:
             raise ValueError("t2 must be greater than t1")
         df1 = self.discount_factor(t1)

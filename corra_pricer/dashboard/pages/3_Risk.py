@@ -23,7 +23,7 @@ styling.apply_page_config("Risk")
 styling.render_header("Risk", "DV01, PV01, key-rate DV01, duration, and convexity for the priced swap")
 
 if "priced_swap" not in st.session_state:
-    st.info("No swap has been priced yet on the **Pricing** page -- showing a default "
+    st.info("No swap has been priced yet on the **Pricing** page, showing a default "
              "5Y, $10mm, pay-fixed swap at the current fair rate instead.")
     curve = data_access.get_current_curve(interpolation="linear")
     trade_date = dt.date.today()
@@ -50,7 +50,7 @@ kpi.render_kpi_row([
              "in the curve. The primary hedge ratio a rates desk trades against."},
     {"label": "PV01", "value": f"${risk.pv01:,.2f}",
      "delta": "value of 1bp on the annuity", "delta_color": "neutral",
-     "help": "Present Value of a 01: the dollar value of 1bp on the fixed leg's annuity alone -- "
+     "help": "Present Value of a 01: the dollar value of 1bp on the fixed leg's annuity alone, "
              "a leg-level building block, distinct from DV01's net (both-legs) sensitivity."},
     {"label": "Convexity", "value": f"${risk.convexity:,.4f}",
      "delta": "$ per (1bp)^2", "delta_color": "neutral",
@@ -68,11 +68,12 @@ tab_krd, tab_duration, tab_leg, tab_heatmap = st.tabs(
 )
 
 with tab_krd:
-    st.caption("**KRD (Key-Rate DV01)**: DV01 broken out by curve bucket (2Y/5Y/10Y/30Y) instead of "
-               "one parallel number -- shows *where* on the curve the risk actually sits.")
+    st.caption("**KRD (Key-Rate DV01)**: DV01 broken out by key-rate tenor bucket (2Y/5Y/10Y/30Y) "
+               "instead of one parallel number, shows *where* on the curve the risk sits. "
+               "Risk from the 3Y and 7Y bootstrap nodes is absorbed into adjacent buckets via tent shocks.")
     col1, col2 = st.columns([1, 2])
     with col1:
-        st.dataframe(tables.format_krd_table(risk), use_container_width=True, hide_index=True)
+        st.table(tables.format_krd_table(risk))
     with col2:
         st.plotly_chart(charts.plot_krd_waterfall(risk), use_container_width=True, config=charts.PLOTLY_CONFIG)
     st.plotly_chart(charts.plot_krd_bar(risk), use_container_width=True, config=charts.PLOTLY_CONFIG)
@@ -93,7 +94,7 @@ with tab_duration:
     st.caption(
         "Modified/Macaulay duration for the NET swap is intentionally not shown here: a swap's NPV "
         "can sit at or near zero (e.g. priced at its own fair rate), which makes a price-weighted "
-        "'% price change' duration measure blow up or become undefined -- the same divide-by-near-"
+        "'% price change' duration measure blow up or become undefined, the same divide-by-near-"
         "zero problem documented for convexity below. Macaulay duration is well-defined for the "
         "fixed leg alone (a straightforward positive cashflow stream), which is what's shown above."
     )
@@ -117,7 +118,7 @@ with tab_leg:
 with tab_heatmap:
     st.caption(
         "Key-rate DV01 for a range of swap tenors, all struck today at this swap's own notional, "
-        "fixed rate, and direction -- shows where risk concentrates on the curve as maturity "
+        "fixed rate, and direction, shows where risk concentrates on the curve as maturity "
         "changes (e.g. a 1Y swap's risk sits almost entirely in the 2Y bucket; a 30Y swap's risk "
         "concentrates in the 30Y bucket)."
     )
@@ -128,7 +129,7 @@ with st.expander("What is convexity, and why does it matter?"):
     st.markdown(
         """
 DV01 is a **first-order (linear)** approximation of a nonlinear price/rate relationship.
-Convexity captures the **curvature** -- how much DV01 itself changes as rates move.
+Convexity captures the **curvature**, how much DV01 itself changes as rates move.
 
 It matters because a hedge sized on DV01 alone is well-hedged for a 1bp move but increasingly
 mis-hedged for larger moves. Desks with large convexity exposure re-hedge more frequently
@@ -138,8 +139,8 @@ This platform computes convexity via a central second difference on the fully re
 
 `convexity = NPV(+1bp) + NPV(-1bp) - 2 * NPV(base)`
 
-reported in **unnormalized dollar terms** (rather than divided by price, the textbook bond
-formula) because a swap's NPV can sit at or near zero -- e.g. when priced at its own fair rate --
+reported in **dollar convexity** terms (rather than divided by price, the textbook bond
+formula) because a swap's NPV can sit at or near zero, e.g. when priced at its own fair rate,
 which would make a price-normalized convexity blow up or be undefined.
 """
     )
@@ -149,7 +150,7 @@ with st.expander("Why does a pay-fixed swap have negative duration?"):
         """
 Under this platform's sign convention, DV01 = NPV(curve +1bp) - NPV(curve). A **pay-fixed**
 swap gains value when rates rise (you're locked into paying a below-market fixed rate), so its
-DV01 is **positive**. A **receive-fixed** swap's DV01 is **negative** by the same convention --
+DV01 is **positive**. A **receive-fixed** swap's DV01 is **negative** by the same convention,
 it behaves like a long bond (gains when rates fall).
 
 On the standard bond convention (duration = "how much you lose when yields rise"), a payer swap

@@ -1,18 +1,9 @@
 """
-The ONLY module in the dashboard that touches corra_pricer's backend
-directly. Every page imports from here (plus charts.py/tables.py for pure
-presentation) -- nothing in pages/ calls market_data, curve_builder,
-pricing_engine, risk_engine, scenario_engine, or analytics directly, and
-nothing here re-implements any of their math. This module's only job is
-(a) thin pass-throughs to the real functions and (b) a Streamlit caching
-boundary around the network-bound calls.
+Single caching boundary between the dashboard and the backend.
 
-Caching note: st.cache_data pickles return values, but YieldCurve stores a
-closure (its interpolator function) as an instance attribute, which the
-standard pickle module cannot serialize. Anything that returns a YieldCurve
-(or a dataclass containing one) therefore uses st.cache_resource instead,
-which caches the live object by reference rather than pickling it. Plain
-dict/DataFrame-returning network calls use st.cache_data.
+st.cache_resource (not cache_data) is used for anything returning a
+YieldCurve: YieldCurve stores a closure as an instance attribute, which
+pickle cannot serialize. cache_resource caches the live object by reference.
 """
 from __future__ import annotations
 
@@ -32,15 +23,12 @@ from corra_pricer.pricing_engine.calendars import add_business_days as _add_busi
 from corra_pricer.pricing_engine.calendars import next_imm_date as _next_imm_date
 from corra_pricer.pricing_engine.conventions import DAYCOUNT_CONVENTIONS
 from corra_pricer.pricing_engine.ois_swap import CorraOISSwap
-from corra_pricer.risk_engine.risk_engine import build_risk_report, compute_extended_risk_metrics, compute_krd
+from corra_pricer.risk_engine.risk_engine import RiskEngine
 from corra_pricer.risk_engine.risk_report import RiskReport
 from corra_pricer.scenario_engine.scenario_engine import (
+    ScenarioEngine,
     ScenarioResult,
     build_scenario_curve,
-    run_custom_scenario,
-    run_monte_carlo_scenarios,
-    run_scenario,
-    scenario_summary_table,
 )
 from corra_pricer.scenario_engine.scenarios import DEFAULT_BUCKETS, SCENARIO_CATALOG
 
@@ -49,6 +37,8 @@ PAYMENT_FREQUENCIES = {"Annual": 1, "Semiannual": 2, "Quarterly": 4, "Monthly": 
 DAYCOUNT_CHOICES = list(DAYCOUNT_CONVENTIONS.keys())
 BUSINESS_DAY_CONVENTION_CHOICES = list(BUSINESS_DAY_CONVENTIONS.keys())
 CALENDAR_CHOICES = list(CALENDARS.keys())
+CALENDAR_LABELS = {"Canada": "Toronto (Canada)", "TARGET": "Frankfurt (TARGET/Euro Area)",
+                   "Weekend Only": "Weekend Only (no holidays)"}
 STUB_CHOICES = ["short_first", "long_first", "short_last", "long_last"]
 INTERPOLATION_LABELS = {"linear": "Linear", "log_linear_df": "Log-Linear DF", "cubic_spline": "Cubic Spline"}
 STUB_LABELS = {
@@ -60,9 +50,6 @@ SCENARIO_CATEGORY_LABELS = {
     "macro": "Macro event", "user_defined": "Custom",
 }
 
-# The engine keys scenarios by snake_case identifier (inflation_shock, boc_surprise_hike).
-# Those are storage keys, not display text -- these helpers turn them into the
-# reader-facing labels used in every dropdown, chart axis and table.
 _SCENARIO_WORD_FIXES = {"boc": "BoC", "covid": "COVID", "qe": "QE", "qt": "QT"}
 
 
@@ -84,7 +71,7 @@ def scenario_option_label(key: str) -> str:
     return f"{prefix} · {name}" if prefix else name
 
 
-# --- Market data (Module 1) ---------------------------------------------
+# --- Market data ---
 
 @st.cache_data(ttl=3600, show_spinner="Pulling live market data from the Bank of Canada...")
 def get_market_snapshot() -> dict:
@@ -101,11 +88,6 @@ def get_current_curve(interpolation: str = "linear") -> YieldCurve:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_prior_day_snapshot() -> dict:
-    """Yesterday's market snapshot, for computing day-over-day deltas.
-    Reuses Module 8's fetch_market_snapshot_for_date() -- the same
-    nearest-available-date resolution used for historical replay -- so a
-    request for "yesterday" on a Monday correctly resolves to Friday's
-    close rather than erroring on a weekend gap."""
     yesterday = dt.date.today() - dt.timedelta(days=1)
     return historical_replay.fetch_market_snapshot_for_date(yesterday)
 
@@ -114,7 +96,7 @@ def get_bootstrap_residuals(curve: YieldCurve, benchmark_yields_pct: dict) -> di
     return reprice_par_bonds(curve, benchmark_yields_pct)
 
 
-# --- Pricing (Module 3) ---------------------------------------------------
+# --- Pricing ---
 
 def build_swap(
     trade_date: dt.date, maturity_date: dt.date, notional: float,
@@ -138,8 +120,6 @@ def maturity_from_tenor(trade_date: dt.date, tenor_years: int) -> dt.date:
 
 
 def spot_date(trade_date: dt.date, spot_lag_days: int, calendar_name: str = "Canada") -> dt.date:
-    """T+n spot lag: steps forward spot_lag_days business days from the
-    trade date. Composes calendars.add_business_days(), pre-existing."""
     return _add_business_days(trade_date, spot_lag_days, calendar_name)
 
 
@@ -151,33 +131,29 @@ def price_swap(swap: CorraOISSwap, curve: YieldCurve) -> dict:
     return swap.summary(curve)
 
 
-# --- Risk (Module 4) -------------------------------------------------------
+# --- Risk ---
 
 def get_risk_report(swap: CorraOISSwap, curve: YieldCurve) -> RiskReport:
-    return build_risk_report(swap, curve)
+    return RiskEngine(swap, curve).report()
 
 
 def get_extended_risk_metrics(swap: CorraOISSwap, curve: YieldCurve) -> dict:
-    return compute_extended_risk_metrics(swap, curve)
+    return RiskEngine(swap, curve).extended_metrics()
 
 
 def get_krd_heatmap_data(curve: YieldCurve, notional: float, fixed_rate: float, pay_fixed: bool,
                           tenors_years: list[int] | None = None) -> dict:
-    """KRD for a range of swap tenors, all struck today at the given fixed
-    rate/notional -- shows where risk concentrates on the curve for
-    different-maturity swaps. Composes build_swap() + compute_krd(), both
-    pre-existing; no new pricing logic."""
     tenors_years = tenors_years or [1, 2, 5, 10, 20, 30]
     trade_date = dt.date.today()
     rows = {}
     for years in tenors_years:
         maturity_date = maturity_from_tenor(trade_date, years)
         swap = build_swap(trade_date, maturity_date, notional, fixed_rate, pay_fixed)
-        rows[f"{years}Y"] = compute_krd(swap, curve)
+        rows[f"{years}Y"] = RiskEngine(swap, curve).krd()
     return rows
 
 
-# --- Scenarios (Module 5) ---------------------------------------------------
+# --- Scenarios ---
 
 def get_scenario_names() -> list[str]:
     return list(SCENARIO_CATALOG.keys())
@@ -188,11 +164,11 @@ def get_scenario_catalog() -> dict:
 
 
 def get_scenario_table(swap: CorraOISSwap, curve: YieldCurve):
-    return scenario_summary_table(swap, curve)
+    return ScenarioEngine(swap, curve).summary_table()
 
 
 def get_scenario_detail(swap: CorraOISSwap, curve: YieldCurve, scenario_name: str) -> ScenarioResult:
-    return run_scenario(swap, curve, scenario_name)
+    return ScenarioEngine(swap, curve).run(scenario_name)
 
 
 def get_scenario_curve(curve: YieldCurve, scenario_name: str):
@@ -200,7 +176,7 @@ def get_scenario_curve(curve: YieldCurve, scenario_name: str):
 
 
 def get_custom_scenario_result(swap: CorraOISSwap, curve: YieldCurve, bucket_shocks_bp: dict) -> ScenarioResult:
-    return run_custom_scenario(swap, curve, bucket_shocks_bp, name="Custom Shock")
+    return ScenarioEngine(swap, curve).run_custom(bucket_shocks_bp, name="Custom Shock")
 
 
 def get_custom_scenario_curve(curve: YieldCurve, bucket_shocks_bp: dict):
@@ -210,11 +186,10 @@ def get_custom_scenario_curve(curve: YieldCurve, bucket_shocks_bp: dict):
 
 def get_monte_carlo_results(swap: CorraOISSwap, curve: YieldCurve, n_simulations: int,
                              shock_std_bp: float, seed: int | None = None):
-    return run_monte_carlo_scenarios(swap, curve, n_simulations=n_simulations,
-                                      shock_std_bp=shock_std_bp, seed=seed)
+    return ScenarioEngine(swap, curve).run_monte_carlo(n_simulations, shock_std_bp, seed)
 
 
-# --- Historical replay (Module 8) -------------------------------------------
+# --- Historical replay ---
 
 @st.cache_resource(ttl=3600, show_spinner="Fetching historical curve...")
 def get_historical_curve(as_of_date: dt.date, interpolation: str = "linear"):
@@ -257,11 +232,6 @@ def get_historical_krd_heatmap(
     calendar_name: str = "Weekend Only", stub: str = "short_first",
     spot_lag_days: int = 0, use_imm_start: bool = False,
 ) -> dict:
-    """KRD for the same swap terms, struck fresh on each historical date --
-    shows how risk concentration itself shifted as the curve moved through
-    the cycle (e.g. a normal curve spreads a 10Y swap's risk across
-    buckets; a badly inverted curve can shift it). Composes
-    price_swap_as_of_historical() + compute_krd(), both pre-existing."""
     rows = {}
     for label, date in dates.items():
         result = price_swap_as_of_historical(
@@ -270,7 +240,7 @@ def get_historical_krd_heatmap(
             calendar_name=calendar_name, stub=stub, spot_lag_days=spot_lag_days,
             use_imm_start=use_imm_start,
         )
-        rows[label] = compute_krd(result.swap, result.curve)
+        rows[label] = RiskEngine(result.swap, result.curve).krd()
     return rows
 
 
