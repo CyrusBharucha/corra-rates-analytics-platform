@@ -67,7 +67,7 @@ def test_build_historical_curve_uses_bootstrap_zero_curve():
 
 def test_price_swap_as_of_reuses_existing_pricer_and_risk_engine():
     """price_swap_as_of should produce a swap/curve/risk-report indistinguishable
-    from calling the Module 2/3/4 functions directly -- no parallel logic."""
+    from calling the underlying pricer and risk engine directly."""
     corra_rows = [("2026-07-10", 2.29)]
     yields_rows = [("2026-07-10", [2.80, 2.91, 3.12, 3.26, 3.52, 3.93])]
     with patch.object(hr, "fetch_corra_history", return_value=_corra_frame(corra_rows)), \
@@ -79,7 +79,7 @@ def test_price_swap_as_of_reuses_existing_pricer_and_risk_engine():
     assert result.swap.trade_date == dt.date(2026, 7, 10)
     assert result.swap.effective_date == dt.date(2026, 7, 10)
     assert result.swap.maturity_date == dt.date(2031, 7, 10)
-    # priced at fair rate by default -> NPV should be ~0, exactly like Module 3's fair_rate() contract
+    # priced at fair rate by default -> NPV should be ~0
     assert result.npv == pytest.approx(0.0, abs=1.0)
     assert result.risk.dv01 > 0  # pay_fixed default
 

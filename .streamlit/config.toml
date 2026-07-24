@@ -1,6 +1,3 @@
-# "The Ledger" light theme -- Bank-of-Canada bond-note palette. Keeps
-# Streamlit's native widgets (inputs, tabs, tables, selectboxes) on the same
-# banknote-paper ground as the custom CSS in components/styling.py.
 [theme]
 base = "light"
 primaryColor = "#1E5B3B"

@@ -1,6 +1,6 @@
 """Shared page chrome: page config, a full CSS pass for an institutional
 dark-terminal look, and reusable header/status components. Presentation
-only -- no backend calls live here.
+only - no backend calls live here.
 """
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ html, body, [class*="css"] {
 /* Streamlit locks body text to a cool grey (#31333F). Force the Ledger's
    green-black ink at the root so headings (which inherit) pick it up too.
    Component classes that set their own explicit colour (muted labels, accents)
-   keep it -- an element's own declaration always beats an inherited one, so
+   keep it - an element's own declaration always beats an inherited one, so
    this only recolours text that would otherwise fall through to the default. */
 html, body, .stApp,
 [data-testid="stAppViewContainer"], [data-testid="stMain"],
@@ -57,12 +57,22 @@ html, body, .stApp,
     color: var(--text-primary) !important;
 }
 
-/* Strip default Streamlit chrome -- menu, footer, deploy button. */
+/* Strip default Streamlit chrome - menu, footer, deploy button, page-transition flash bar. */
 #MainMenu, footer, [data-testid="stToolbar"] { visibility: hidden; }
 header[data-testid="stHeader"] { background: transparent; }
 
+/* Suppress every element that causes the blue flash on page navigation */
+[data-testid="stDecoration"] { display: none !important; }
+[data-testid="stStatusWidget"] { display: none !important; }
+
+/* Prevent blue bleed-through during page switch: force the page bg on html/body
+   so even before Streamlit's own CSS injects, the correct colour shows */
+html, body { background-color: #ECEFE8 !important; }
+[data-stale="true"] { opacity: 1 !important; background-color: #ECEFE8 !important; }
+.stApp { background-color: #ECEFE8 !important; }
+
 /* Streamlit's built-in accent is a bright red (#FF4B4B). Recolour the visible
-   accent surfaces to the Ledger's bottle-green so nothing clashes -- tabs,
+   accent surfaces to the Ledger's bottle-green so nothing clashes - tabs,
    links, the active sidebar page, and selected controls. (The theme config
    also sets this, but overriding here guarantees it regardless of whether the
    host reads .streamlit/config.toml.) */
@@ -107,7 +117,7 @@ header[data-testid="stHeader"] { background: transparent; }
 
 /* Streamlit's header/sidebar icon buttons (collapse/expand sidebar, main
    menu) render in its light-theme default color (near-black), which is
-   invisible against this app's dark background -- most visibly the
+   invisible against this app's dark background - most visibly the
    sidebar's re-expand arrow, which becomes an unclickable-looking dead
    zone once the sidebar is collapsed. Force them to the theme's text color. */
 [data-testid="stExpandSidebarButton"],
@@ -120,7 +130,7 @@ header[data-testid="stHeader"] { background: transparent; }
 }
 
 /* The re-expand control is also tiny (28px) and blends into the header
-   even once correctly colored -- give it its own visible pill so it
+   even once correctly colored - give it its own visible pill so it
    reads as an obvious button rather than a hard-to-spot glyph, since a
    user who once collapses the sidebar has no other way back in. */
 [data-testid="stExpandSidebarButton"] {
@@ -162,6 +172,30 @@ header[data-testid="stHeader"] { background: transparent; }
 /* Numeric readouts and tables in monospace for a terminal feel */
 [data-testid="stDataFrame"], .kpi-value, code {
     font-family: var(--font-mono) !important;
+}
+
+/* Force dataframe/table container to blend with page */
+[data-testid="stDataFrame"] {
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: 6px !important;
+    overflow: hidden;
+}
+[data-testid="stTable"] [data-testid="stTableStyledTable"] th {
+    background-color: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-subtle) !important;
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    font-size: 0.88rem !important;
+    font-weight: 600 !important;
+    padding: 0.6rem 0.8rem !important;
+}
+[data-testid="stTable"] [data-testid="stTableStyledTable"] td {
+    background-color: var(--bg-page) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-subtle) !important;
+    font-family: 'IBM Plex Mono', 'Consolas', monospace !important;
+    font-size: 0.85rem !important;
+    padding: 0.5rem 0.8rem !important;
 }
 
 hr { border-color: var(--border-subtle); }
@@ -228,12 +262,25 @@ hr { border-color: var(--border-subtle); }
     border-radius: 5px;
     padding: 1rem 1.1rem;
     min-height: 92px;
+    height: 100%;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
     transition: border-color 0.15s ease;
 }
 .kpi-card:hover { border-color: rgba(30,91,59,0.55); }
+/* Equal-height KPI cards: stretch the whole Streamlit column chain so every
+   card in a row matches the tallest one, no matter how its label or delta
+   text wraps. Without this, a card whose text wraps to two lines is visibly
+   taller than its neighbours. */
+[data-testid="stColumn"] > [data-testid="stVerticalBlock"] { height: 100%; }
+[data-testid="stElementContainer"]:has(.kpi-card),
+[data-testid="stMarkdown"]:has(.kpi-card),
+[data-testid="stMarkdownContainer"]:has(> .kpi-card) { height: 100%; }
+[data-testid="stMarkdown"]:has(.kpi-card) > div {
+    height: 100%;
+    align-items: stretch !important;
+}
 .kpi-label {
     color: var(--text-muted);
     font-size: 0.76rem;
@@ -262,6 +309,11 @@ hr { border-color: var(--border-subtle); }
 /* --- Bordered input/control groups (st.container(border=True)) --- */
 [data-testid="stVerticalBlockBorderWrapper"] {
     border-radius: 6px !important;
+    margin-bottom: 0 !important;
+}
+/* Tighten Streamlit's default inter-element gap in the main column */
+[data-testid="stVerticalBlock"] {
+    gap: 0.75rem !important;
 }
 
 /* --- Section labels: set like a heading in a research note, not a

@@ -4,11 +4,9 @@ Business day calendars and adjustment conventions.
 Calendars here are reasonable approximations of the real holiday
 calendars (Canadian federal/bank statutory holidays, TARGET), built from
 first principles (an Easter/Good-Friday calculation plus "Nth weekday of
-month" rules) -- not sourced from an official Payments Canada or ECB
-calendar feed. Good enough to demonstrate the mechanics of business-day
-adjustment correctly; not a substitute for a production holiday calendar
-in a real trading system. This limitation is documented deliberately
-rather than silently assumed.
+month" rules) - not sourced from an official Payments Canada or ECB
+calendar feed. Good enough to demonstrate the mechanics of business-day adjustment correctly;
+not a substitute for a production holiday calendar.
 """
 from __future__ import annotations
 
@@ -66,7 +64,7 @@ def _observed(date: dt.date) -> dt.date:
 
 
 def _victoria_day(year: int) -> dt.date:
-    """Monday on or before May 24 -- NOT simply "the last Monday of May":
+    """Monday on or before May 24 - NOT simply "the last Monday of May":
     when May 25-31 contains a Monday, that Monday falls after May 24 and
     is one week too late."""
     d = dt.date(year, 5, 24)

@@ -2,11 +2,9 @@
 Risk engine for CorraOISSwap: DV01, PV01, key-rate DV01, and convexity, all
 via manual bump-and-reprice (no analytic-derivative shortcuts, no QuantLib).
 
---- Interview notes, kept inline because this module exists to be explained ---
-
 DV01 ("dollar value of a basis point"): how much a swap's NPV changes for a
 1bp parallel move in the discounting curve. It's the primary hedge ratio a
-rates desk uses -- if you're short $X of DV01, you buy enough of an offsetting
+rates desk uses - if you're short $X of DV01, you buy enough of an offsetting
 instrument (a bond, a swap, a future) with +$X of DV01 to flatten your P&L
 sensitivity to small rate moves. Traders hedge DV01 because unhedged, a
 single-basis-point-a-day move on a large notional swap book is real P&L,
@@ -15,18 +13,16 @@ and desks are typically mandated to run near-flat rate risk intraday.
 Sign convention here: DV01 = NPV(curve +1bp) - NPV(curve). A pay-fixed swap
 gains value when rates rise (you're locked into paying a below-market fixed
 rate), so its DV01 is POSITIVE under this convention. A receive-fixed swap's
-DV01 is NEGATIVE by the same convention -- it behaves like a long bond
+DV01 is NEGATIVE by the same convention - it behaves like a long bond
 (gains when rates fall), so on the standard bond convention (duration = "how
 much you lose when yields rise") a payer swap has *negative* duration: it is
 economically short a bond (short duration), a receiver swap is economically
 long a bond (positive duration, same as duration convention for a bond
-holder). This directly answers "why does a pay-fixed swap have negative
-duration": because paying fixed is equivalent to being short a fixed-coupon
-bond and long floating-rate cash.
+holder) — paying fixed is equivalent to being short a fixed-coupon bond and long floating-rate cash.
 
 Key-rate duration (KRD): a single parallel DV01 hides *where* on the curve
 the risk sits. Two swaps can have identical total DV01 (e.g. a 2Y payer and
-a 10Y payer sized to match) but completely different curve exposure -- the
+a 10Y payer sized to match) but completely different curve exposure - the
 2Y swap is exposed to front-end/policy-rate moves, the 10Y to term-premium
 moves. A steepener or flattener will P&L them oppositely even with equal
 DV01. KRD buckets that risk by tenor using triangular ("tent") shocks
@@ -35,7 +31,7 @@ shift exactly across buckets, which is why summing all KRD buckets recovers
 (approximately) the total parallel DV01.
 
 Convexity: DV01 is a first-order (linear) approximation of a nonlinear
-price/rate relationship. Convexity captures the curvature -- how much DV01
+price/rate relationship. Convexity captures the curvature - how much DV01
 itself changes as rates move. It matters because a hedge sized on DV01 alone
 will be well-hedged for a 1bp move but increasingly mis-hedged for larger
 moves; desks with large convexity exposure re-hedge more frequently ("gamma
@@ -93,7 +89,7 @@ def compute_convexity(swap, curve, bump_bp: float = 1.0) -> float:
         convexity = NPV(+bump) + NPV(-bump) - 2 * NPV(base)
     This is left un-normalized (dollars per (1bp)^2) rather than divided by
     NPV(base), because a swap's NPV can be at or near zero (e.g. when priced
-    at the fair rate) -- dividing by price, the textbook bond-convexity
+    at the fair rate) - dividing by price, the textbook bond-convexity
     formula, blows up or is undefined for an at-par swap. The dollar/notional
     form is the version that's actually usable for a swap book.
     """
@@ -107,7 +103,7 @@ def compute_convexity(swap, curve, bump_bp: float = 1.0) -> float:
 
 def compute_dollar_duration(swap, curve, bump_bp: float = 100.0) -> float:
     """'Dollar duration' here is DV01 scaled to a 100bp ('1%') move rather
-    than 1bp -- same bump-and-reprice as compute_dv01, just a different
+    than 1bp - same bump-and-reprice as compute_dv01, just a different
     move size, since "dollar duration" and "DV01" are the same underlying
     concept quoted at different conventional magnitudes on different desks.
     """
@@ -115,7 +111,7 @@ def compute_dollar_duration(swap, curve, bump_bp: float = 100.0) -> float:
 
 
 def compute_gamma_dv01(swap, curve, bump_bp: float = 50.0) -> float:
-    """How much DV01 itself changes for a bump_bp move -- i.e. gamma
+    """How much DV01 itself changes for a bump_bp move - i.e. gamma
     expressed in DV01 terms rather than dollar-convexity terms
     (compute_convexity). Useful because 'my DV01 hedge is off by $X per
     50bp of rates moving' is a more directly actionable risk-management
@@ -130,7 +126,7 @@ def compute_gamma_dv01(swap, curve, bump_bp: float = 50.0) -> float:
 def compute_leg_dv01(swap, curve, bump_bp: float = 1.0) -> dict[str, float]:
     """DV01 of the fixed leg and floating leg separately (each leg's own
     PV bumped and repriced in isolation), which sum to the net swap DV01.
-    Splits out where a swap's rate sensitivity actually lives -- useful
+    Splits out where a swap's rate sensitivity actually lives - useful
     when, e.g., explaining why a deep-in-the-money swap's net DV01 looks
     smaller than either leg's DV01 alone (the legs are partially offsetting).
     """
@@ -147,7 +143,7 @@ def compute_leg_dv01(swap, curve, bump_bp: float = 1.0) -> dict[str, float]:
 
 def compute_fixed_leg_macaulay_duration(swap, curve) -> float:
     """Macaulay duration (PV-weighted average time to cashflow) of the
-    FIXED LEG only -- not the net swap. A net swap's NPV can sit at or
+    FIXED LEG only - not the net swap. A net swap's NPV can sit at or
     near zero (e.g. priced at its own fair rate), which makes a
     price-weighted "duration" for the whole swap ill-defined (same
     divide-by-near-zero problem documented on compute_convexity). The
@@ -169,10 +165,7 @@ def compute_fixed_leg_macaulay_duration(swap, curve) -> float:
 
 
 def compute_extended_risk_metrics(swap, curve) -> dict:
-    """Bundles the additional risk views above into one call -- kept
-    separate from RiskReport/build_risk_report (Module 4's original,
-    stable output) so existing callers are unaffected; this is purely
-    additive."""
+    """Bundles the additional risk views above into one call."""
     leg_dv01 = compute_leg_dv01(swap, curve)
     return {
         "dollar_duration_100bp": compute_dollar_duration(swap, curve),

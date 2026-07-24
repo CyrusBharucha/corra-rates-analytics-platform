@@ -1,40 +1,17 @@
 """
-Scenario catalog: named, documented curve shocks a rates desk asks about
-constantly. Every scenario is expressed as a set of key-rate bucket shocks
-(in bp) at the same 2Y/5Y/10Y/30Y buckets the risk engine uses -- so a
-"parallel +25bp" scenario is just an equal shock at all four buckets, which,
-thanks to the tent-weight partition-of-unity property (see
-curve_builder/shocked_curve.py), reconstructs an exact true parallel shift.
-Curve trades and macro scenarios use unequal bucket shocks to twist or tilt
-the curve shape.
+Named curve shocks expressed as key-rate bucket shocks (bp) at the
+2Y/5Y/10Y/30Y buckets. A parallel shift is equal across all buckets;
+curve trades and macro scenarios use unequal shocks to twist or tilt shape.
 
-Macro scenario shapes are illustrative, stylized assumptions for
-demonstration -- not calibrated forecasts -- grounded in standard rates
-intuition:
-  - A central bank surprise is a shock to the near-term expected policy
-    path; it fades toward the long end because long yields price in a
-    reversion to a neutral rate, not a permanent level shift. This is why
-    "surprise hike/cut" scenarios are front-loaded and decay by maturity
-    (a bear/bull FLATTENER shape).
-  - An inflation shock raises the compensation investors demand for holding
-    long-dated fixed cashflows (the inflation/term premium) much more than
-    it raises near-term rates, which are anchored by current policy (a bear
-    STEEPENER shape).
-  - A recession scenario prices in an aggressive future cutting cycle: the
-    front end falls hardest as cuts get priced in, while the long end falls
-    less (or barely) since it already reflects a lower long-run neutral
-    rate (a bull STEEPENER shape).
-  - QT (quantitative tightening) raises the long end disproportionately as
-    central bank balance-sheet runoff increases net bond supply the market
-    must absorb (a term-premium / bear-steepener effect); QE does the
-    opposite (bull flattener, the long end pinned down by central bank
-    purchases).
+Macro scenario shapes are stylized, not calibrated forecasts:
+  - Central bank surprise: front-loaded shock, fades toward the long end
+    (policy path repricing, not a permanent level shift) - bear/bull flattener.
+  - Inflation shock: raises the long end more than the front (term/inflation
+    premium) - bear steepener.
+  - Recession: front end falls hardest as cuts get priced in - bull steepener.
+  - QT/QE: long end bear/bull move from balance-sheet supply/demand effects.
 
-Distinct from Module 8 (historical replay), which prices swaps on REAL
-historical dates using REAL Bank of Canada data -- these macro scenarios
-are named after real episodes for intuition, but the shock magnitudes
-below are illustrative/stylized, not a reproduction of what actually
-happened on any specific date. Use Module 8 if you want the real thing.
+Shock magnitudes are illustrative. Use Historical Replay for real data.
 """
 from __future__ import annotations
 
@@ -68,8 +45,11 @@ PARALLEL_SCENARIOS = {}
 for _bp in PARALLEL_MAGNITUDES_BP:
     for _sign, _label in [(1, "+"), (-1, "-")]:
         _name = f"parallel_{_label}{_bp}bp"
+        _direction = "up" if _sign == 1 else "down"
         PARALLEL_SCENARIOS[_name] = Scenario(
-            _name, f"Parallel curve shift, {_label}{_bp}bp", _parallel(_sign * _bp), "parallel",
+            _name,
+            f"All maturities shift {_direction} by {_bp}bp - the same shock at every point on the curve.",
+            _parallel(_sign * _bp), "parallel",
         )
 
 CURVE_TRADE_SCENARIOS = {
@@ -116,22 +96,22 @@ CURVE_TRADE_SCENARIOS = {
     "twist": Scenario(
         "twist",
         "Rotation around the belly: short end down, long end up, 5Y roughly "
-        "anchored -- 2Y -15 / 5Y 0 / 10Y +15 / 30Y +20bp",
+        "anchored - 2Y -15 / 5Y 0 / 10Y +15 / 30Y +20bp",
         _four_point(-15, 0, 15, 20), "curve_trade",
     ),
     "butterfly": Scenario(
         "butterfly",
-        "Wings up, belly down (belly outperforms) -- 2Y +10 / 5Y -15 / 10Y -15 / 30Y +10bp",
+        "Wings up, belly down (belly outperforms) - 2Y +10 / 5Y -15 / 10Y -15 / 30Y +10bp",
         _four_point(10, -15, -15, 10), "curve_trade",
     ),
     "humped": Scenario(
         "humped",
-        "Belly up, wings down (belly underperforms) -- 2Y -5 / 5Y +15 / 10Y +15 / 30Y -5bp",
+        "Belly up, wings down (belly underperforms) - 2Y -5 / 5Y +15 / 10Y +15 / 30Y -5bp",
         _four_point(-5, 15, 15, -5), "curve_trade",
     ),
     "inverted": Scenario(
         "inverted",
-        "Sustained inversion: front end sharply higher than the long end -- "
+        "Sustained inversion: front end sharply higher than the long end - "
         "2Y +50 / 5Y +20 / 10Y -10 / 30Y -30bp",
         _four_point(50, 20, -10, -30), "curve_trade",
     ),
@@ -141,25 +121,25 @@ MACRO_SCENARIOS = {
     "boc_surprise_hike": Scenario(
         "boc_surprise_hike",
         "BoC hikes more than priced in: front-loaded rise, decaying by maturity "
-        "(bear flattener shape) -- 2Y +25 / 5Y +15 / 10Y +8 / 30Y +3bp",
+        "(bear flattener shape) - 2Y +25 / 5Y +15 / 10Y +8 / 30Y +3bp",
         _four_point(25, 15, 8, 3), "macro",
     ),
     "boc_surprise_cut": Scenario(
         "boc_surprise_cut",
         "BoC cuts more than priced in: front-loaded fall, decaying by maturity "
-        "(bull steepener shape) -- 2Y -25 / 5Y -15 / 10Y -8 / 30Y -3bp",
+        "(bull steepener shape) - 2Y -25 / 5Y -15 / 10Y -8 / 30Y -3bp",
         _four_point(-25, -15, -8, -3), "macro",
     ),
     "inflation_shock": Scenario(
         "inflation_shock",
         "Inflation surprise repriced into the term/inflation premium, hitting the "
-        "long end hardest (bear steepener shape) -- 2Y +5 / 5Y +15 / 10Y +30 / 30Y +40bp",
+        "long end hardest (bear steepener shape) - 2Y +5 / 5Y +15 / 10Y +30 / 30Y +40bp",
         _four_point(5, 15, 30, 40), "macro",
     ),
     "recession": Scenario(
         "recession",
         "Recession: an aggressive future cutting cycle gets priced in fast at the "
-        "front end (bull steepener shape) -- 2Y -75 / 5Y -50 / 10Y -25 / 30Y -10bp",
+        "front end (bull steepener shape) - 2Y -75 / 5Y -50 / 10Y -25 / 30Y -10bp",
         _four_point(-75, -50, -25, -10), "macro",
     ),
     "covid_panic": Scenario(
@@ -170,65 +150,65 @@ MACRO_SCENARIOS = {
     ),
     "covid_easing": Scenario(
         "covid_easing",
-        "Sustained emergency easing plus QE-style long-end suppression -- broad, "
-        "roughly parallel cuts -- 2Y -20 / 5Y -15 / 10Y -20 / 30Y -25bp",
+        "Sustained emergency easing plus QE-style long-end suppression - broad, "
+        "roughly parallel cuts - 2Y -20 / 5Y -15 / 10Y -20 / 30Y -25bp",
         _four_point(-20, -15, -20, -25), "macro",
     ),
     "hiking_cycle_begins": Scenario(
         "hiking_cycle_begins",
         "Front-loaded shock as the market prices the start of a hiking cycle plus "
-        "several more hikes to come -- 2Y +40 / 5Y +25 / 10Y +15 / 30Y +5bp",
+        "several more hikes to come - 2Y +40 / 5Y +25 / 10Y +15 / 30Y +5bp",
         _four_point(40, 25, 15, 5), "macro",
     ),
     "hiking_cycle_peak": Scenario(
         "hiking_cycle_peak",
         "'Higher for longer' repricing near a hiking cycle's peak: inversion "
-        "deepens as recession risk builds at the long end -- 2Y +15 / 5Y 0 / "
+        "deepens as recession risk builds at the long end - 2Y +15 / 5Y 0 / "
         "10Y -10 / 30Y -15bp",
         _four_point(15, 0, -10, -15), "macro",
     ),
     "banking_crisis": Scenario(
         "banking_crisis",
         "Sharp flight-to-quality on banking-sector stress: front end collapses on "
-        "fast rate-cut bets -- 2Y -60 / 5Y -35 / 10Y -15 / 30Y -5bp",
+        "fast rate-cut bets - 2Y -60 / 5Y -35 / 10Y -15 / 30Y -5bp",
         _four_point(-60, -35, -15, -5), "macro",
     ),
     "quantitative_tightening": Scenario(
         "quantitative_tightening",
         "QT: balance-sheet runoff increases net bond supply, pushing the long end "
-        "up disproportionately (term-premium bear steepener) -- 2Y +5 / 5Y +10 / "
+        "up disproportionately (term-premium bear steepener) - 2Y +5 / 5Y +10 / "
         "10Y +20 / 30Y +30bp",
         _four_point(5, 10, 20, 30), "macro",
     ),
     "quantitative_easing": Scenario(
         "quantitative_easing",
         "QE: central bank purchases pin the long end down disproportionately "
-        "(bull flattener) -- 2Y -2 / 5Y -8 / 10Y -20 / 30Y -30bp",
+        "(bull flattener) - 2Y -2 / 5Y -8 / 10Y -20 / 30Y -30bp",
         _four_point(-2, -8, -20, -30), "macro",
     ),
     "emergency_cut": Scenario(
         "emergency_cut",
-        "A single large surprise emergency cut, sharply front-loaded -- "
+        "A single large surprise emergency cut, sharply front-loaded - "
         "2Y -50 / 5Y -30 / 10Y -15 / 30Y -5bp",
         _four_point(-50, -30, -15, -5), "macro",
     ),
     "soft_landing": Scenario(
         "soft_landing",
         "Gradual, benign normalization: mild cuts priced in gently, long end "
-        "roughly flat -- 2Y -10 / 5Y -5 / 10Y 0 / 30Y +2bp",
+        "roughly flat - 2Y -10 / 5Y -5 / 10Y 0 / 30Y +2bp",
         _four_point(-10, -5, 0, 2), "macro",
     ),
     "sticky_inflation": Scenario(
         "sticky_inflation",
         "Inflation proves more persistent than expected: broadly higher yields "
-        "with a front-end tilt as 'higher for longer' gets priced in -- "
+        "with a front-end tilt as 'higher for longer' gets priced in - "
         "2Y +20 / 5Y +25 / 10Y +20 / 30Y +15bp",
         _four_point(20, 25, 20, 15), "macro",
     ),
     "stagflation": Scenario(
         "stagflation",
         "Worst-case: inflation/term premium dominates and drives a severe bear "
-        "steepener even as growth concerns build -- 2Y +15 / 5Y +25 / 10Y +45 / "
+        "steepener even as growth concerns build - 2Y +15 / 5Y +25 / 10Y +45 / "
         "30Y +60bp",
         _four_point(15, 25, 45, 60), "macro",
     ),
