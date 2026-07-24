@@ -1,10 +1,10 @@
 """
 Vanilla Canadian CORRA OIS pricer.
 
-Floating leg pricing note (important interview talking point):
-Under single-curve OIS discounting -- where the same curve is used to both
+Floating leg pricing note:
+Under single-curve OIS discounting - where the same curve is used to both
 forecast the compounded CORRA rate over each period AND discount the
-cashflows -- the floating leg's present value telescopes:
+cashflows - the floating leg's present value telescopes:
 
     PV_float = notional * (DF(t_start) - DF(t_end))
 
@@ -13,7 +13,7 @@ period [t_a, t_b] is exactly (DF(t_a)/DF(t_b) - 1)/accrual, so each floating
 cashflow's PV is notional * (DF(t_a) - DF(t_b)); summing over consecutive
 periods telescopes to notional * (DF(t_start) - DF(t_end)). No cashflow
 projection loop is actually needed for a single-curve OIS floating leg --
-this is *the* reason OIS swaps are simple to value.
+this is why OIS floating legs reduce to a single discount factor difference.
 """
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ class CorraOISSwap:
         )
 
     def _t(self, date: dt.date) -> float:
-        """Discounting time-to-cashflow is always ACT/365F -- the curve's
+        """Discounting time-to-cashflow is always ACT/365F - the curve's
         own time convention, independent of the fixed leg's accrual
         day count (see conventions.py module docstring)."""
         return year_fraction(self.trade_date, date)
@@ -88,7 +88,7 @@ class CorraOISSwap:
         return self.notional * (df_start - df_end)
 
     def annuity(self, curve: YieldCurve) -> float:
-        """Sum of accrual_i * DF(t_i) for the fixed leg -- the denominator of the fair rate."""
+        """Sum of accrual_i * DF(t_i) for the fixed leg - the denominator of the fair rate."""
         total = 0.0
         for cf in self.fixed_leg_cashflows():
             total += cf["accrual"] * curve.discount_factor(self._t(cf["end"]))

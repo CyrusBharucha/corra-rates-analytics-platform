@@ -8,3 +8,7 @@ data/processed/*.csv
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 .DS_Store
+
+.claude/
+
+data/

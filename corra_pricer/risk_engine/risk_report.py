@@ -1,5 +1,5 @@
 """
-RiskReport: the structured output of the risk engine -- the object a
+RiskReport: the structured output of the risk engine - the object a
 dashboard page or a trader-facing script would consume directly.
 """
 from __future__ import annotations

@@ -41,7 +41,7 @@ class YieldCurve:
         return float(np.exp(-self.zero_rate(t) * t))
 
     def forward_rate(self, t1: float, t2: float) -> float:
-        """Continuously-compounded simple forward rate between t1 and t2 (t2 > t1)."""
+        """Simple annualized forward rate between t1 and t2 (t2 > t1)."""
         if t2 <= t1:
             raise ValueError("t2 must be greater than t1")
         df1 = self.discount_factor(t1)

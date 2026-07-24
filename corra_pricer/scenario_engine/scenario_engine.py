@@ -5,7 +5,7 @@ user-defined key-rate shock, or a Monte Carlo distribution of random shocks.
 
 Every scenario is built by stacking key-rate bucket shocks (see
 curve_builder/shocked_curve.py), so scenario curves are continuous shocks
-just like the risk engine's KRD shocks -- a scenario is really just a
+just like the risk engine's KRD shocks - a scenario is really just a
 custom-shaped set of simultaneous key-rate bumps.
 
 PnL attribution: because the risk engine already computes each bucket's
@@ -13,12 +13,12 @@ DV01 (dollars per 1bp at that bucket), a *linear* (first-order) estimate of
 a scenario's P&L is just sum(KRD_bucket * scenario_shock_bucket_bp). The
 engine reports this alongside the true, fully repriced NPV change; the gap
 between them is the convexity/cross-term residual the linear estimate
-misses -- itself a useful risk number (large residual = the position has
+misses - itself a useful risk number (large residual = the position has
 meaningful convexity, so DV01-based hedges alone won't track well through
 this scenario).
 
 Monte Carlo note: shocks are drawn independently per bucket from a Normal
-distribution (mean 0, user-specified standard deviation in bp) -- a
+distribution (mean 0, user-specified standard deviation in bp) - a
 simplification (real curve moves are correlated across buckets, most
 strongly between adjacent tenors), documented here rather than silently
 assumed. It's still a legitimate way to explore the *distribution* of P&L
@@ -140,7 +140,7 @@ def run_custom_scenario(
     swap, curve, bucket_shocks_bp: dict, name: str = "custom", buckets: list[float] | None = None,
 ) -> ScenarioResult:
     """Same engine as run_scenario(), but for an arbitrary user-supplied
-    {bucket_time: shock_bp} dict instead of a named catalog entry -- the
+    {bucket_time: shock_bp} dict instead of a named catalog entry - the
     "user-defined shock" capability."""
     description = ", ".join(
         f"{BUCKET_LABELS.get(b, f'{b:g}Y')} {v:+g}bp" for b, v in sorted(bucket_shocks_bp.items())
@@ -163,12 +163,12 @@ def run_monte_carlo_scenarios(
     buckets: list[float] | None = None, seed: int | None = None,
 ):
     """Draws n_simulations independent random key-rate shocks (Normal(0,
-    shock_std_bp) per bucket, buckets uncorrelated -- see module docstring)
+    shock_std_bp) per bucket, buckets uncorrelated - see module docstring)
     and fully reprices the swap under each one. Returns a DataFrame with one
     row per simulation: the shock applied at each bucket, plus the
     resulting NPV change and DV01 change. Deliberately skips the KRD-based
     linear attribution computed for named/custom scenarios (4 extra
-    reprices per call) to stay fast across hundreds of simulations -- the
+    reprices per call) to stay fast across hundreds of simulations - the
     point of a Monte Carlo run is the P&L *distribution*, not per-draw
     attribution detail.
     """
