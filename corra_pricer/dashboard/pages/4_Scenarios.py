@@ -25,7 +25,7 @@ styling.render_header("Scenarios",
                        "user-defined shocks and Monte Carlo")
 
 if "priced_swap" not in st.session_state:
-    st.info("No swap has been priced yet on the **Pricing** page -- showing a default "
+    st.info("No swap has been priced yet on the **Pricing** page, showing a default "
              "5Y, $10mm, pay-fixed swap at the current fair rate instead.")
     curve = data_access.get_current_curve(interpolation="linear")
     trade_date = dt.date.today()
@@ -80,7 +80,7 @@ with tab_detail:
             charts.plot_curve_comparison({
                 "Base curve": curve,
                 f"{data_access.scenario_display_name(selected)} (shocked)": scenario_curve,
-            }),
+            }, title="Zero Curve: Base vs. Shocked"),
             use_container_width=True, config=charts.PLOTLY_CONFIG,
         )
     with col2:
@@ -94,13 +94,12 @@ with tab_grid:
         charts.plot_scenario_grid(scenario_table, labeller=data_access.scenario_display_name),
         use_container_width=True, config=charts.PLOTLY_CONFIG,
     )
-    st.dataframe(
+    st.table(
         tables.format_scenario_table(
             scenario_table,
             labeller=data_access.scenario_display_name,
             category_labels=data_access.SCENARIO_CATEGORY_LABELS,
         ),
-        use_container_width=True, hide_index=True,
     )
 
 with tab_custom:
@@ -130,7 +129,8 @@ with tab_custom:
     col1, col2 = st.columns(2)
     with col1:
         st.plotly_chart(
-            charts.plot_curve_comparison({"Base curve": curve, "Custom shock": custom_curve}),
+            charts.plot_curve_comparison({"Base curve": curve, "Custom shock": custom_curve},
+                                         title="Zero Curve: Base vs. Custom Shock"),
             use_container_width=True, config=charts.PLOTLY_CONFIG,
         )
     with col2:
@@ -141,7 +141,7 @@ with tab_mc:
     st.caption(
         "Draws independent random shocks at each bucket from a Normal(0, std) distribution and "
         "fully reprices the swap under each draw, showing the resulting P&L distribution. Buckets "
-        "are shocked independently (a simplification -- real curve moves are correlated across "
+        "are shocked independently (a simplification, real curve moves are correlated across "
         "tenors), so treat this as exploring unstructured curve noise, not a calibrated risk model."
     )
     with st.container(border=True):
@@ -163,5 +163,8 @@ with tab_mc:
          "delta_color": "neutral"},
         {"label": "95th Percentile", "value": f"${mc['npv_change'].quantile(0.95):,.0f}"},
     ])
+    st.caption("Each bar shows how many simulations landed in that NPV-change range. "
+               "Tall bars near zero mean most random shocks leave the swap near-unchanged; "
+               "thin tails show the range of extreme outcomes at the chosen shock size.")
     st.plotly_chart(charts.plot_monte_carlo_histogram(mc), use_container_width=True,
                      config=charts.PLOTLY_CONFIG)

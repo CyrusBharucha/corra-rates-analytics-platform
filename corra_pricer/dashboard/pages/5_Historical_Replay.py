@@ -19,9 +19,15 @@ import streamlit as st
 
 from corra_pricer.dashboard.components import charts, data_access, kpi, styling, tables
 
+# Read via getattr so a stale cached copy of data_access (Streamlit keeps deep
+# modules imported across reruns) degrades to the raw calendar key instead of
+# raising AttributeError and taking the whole page down.
+_CALENDAR_LABELS = getattr(data_access, "CALENDAR_LABELS", {})
+
 styling.apply_page_config("Historical Replay")
 styling.render_header("Historical Replay",
-                       "Price the same swap across a real, multi-year rates timeline")
+                       "Bank of Canada benchmark yields rebuild the discount curve at each date; "
+                       "the swap is repriced against it with all terms held constant.")
 
 EXAMPLES = data_access.EXAMPLE_HISTORICAL_DATES  # already chronologically ordered
 PRESET_TITLES = {
@@ -64,7 +70,7 @@ with st.container(border=True):
         tenor_label = st.selectbox("Tenor", list(data_access.TENORS_YEARS.keys()), index=3, key="hist_tenor")
     with col2:
         notional = st.number_input("Notional ($)", min_value=1_000, value=10_000_000,
-                                    step=100_000, key="hist_notional")
+                                    step=1_000, key="hist_notional")
     with col3:
         pay_fixed = st.radio("Direction", ["Pay Fixed", "Receive Fixed"], key="hist_dir") == "Pay Fixed"
 
@@ -98,10 +104,12 @@ with st.container(border=True):
                                  "real business day.")
         calendar_name = st.selectbox(
             "Calendar", data_access.CALENDAR_CHOICES, key="hist_calendar",
+            format_func=lambda c: _CALENDAR_LABELS.get(c, c),
             index=0 if bdc != "None" else data_access.CALENDAR_CHOICES.index("Weekend Only"),
         )
-    st.caption("Every date in the comparison below uses this exact same swap configuration -- the "
-               "same swap, compared through time.")
+    st.caption("At each checkpoint, the curve is built from that date's Bank of Canada benchmark "
+               "yields and the swap is repriced against it. Tenor, notional, direction, and all "
+               "convention settings remain identical across every date, only the market curve changes.")
 
 tenor_years = data_access.TENORS_YEARS[tenor_label]
 conventions = dict(
@@ -144,12 +152,11 @@ with tab_compare:
     st.plotly_chart(charts.plot_curve_comparison(curves), use_container_width=True, config=charts.PLOTLY_CONFIG)
     st.plotly_chart(charts.plot_npv_dv01_comparison(comparison), use_container_width=True,
                      config=charts.PLOTLY_CONFIG)
-    st.dataframe(tables.format_historical_comparison_table(comparison), use_container_width=True,
-                 hide_index=True)
+    st.table(tables.format_historical_comparison_table(comparison))
 
 with tab_heatmap:
     st.caption(
-        "Key-rate DV01 for the same swap terms, struck fresh on each historical date -- shows how "
+        "Key-rate DV01 for the same swap terms, struck fresh on each historical date, shows how "
         "risk concentration itself shifted as the curve moved through the cycle."
     )
     heatmap_data = data_access.get_historical_krd_heatmap(dates, tenor_years, notional, None, pay_fixed,

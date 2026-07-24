@@ -1,0 +1,38 @@
+name: Keep Streamlit app awake
+
+# Community Cloud hibernates an app after ~12 hours without traffic, so this
+# runs every 6 hours to stay comfortably inside that window. GitHub skips
+# scheduled runs on repos with no activity for 60 days; a manual
+# workflow_dispatch run re-arms the schedule if that ever happens.
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+# Never let a slow run pile up on top of the next scheduled one.
+concurrency:
+  group: keep-awake
+  cancel-in-progress: true
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    # Generous: a cold start boots Python, calls the BoC API and bootstraps
+    # the curves before the app root renders.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install Playwright Chromium
+        run: |
+          pip install --quiet playwright
+          playwright install --with-deps chromium
+
+      - name: Visit the app
+        env:
+          APP_URL: https://corra-rates-analytics-platform-3ncvfa6f4pv2ytsc3pauy7.streamlit.app/
+        run: python .github/scripts/keep_awake.py

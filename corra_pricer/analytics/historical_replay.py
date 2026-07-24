@@ -1,7 +1,7 @@
 """
 Historical replay (Module 8): price a swap on any historical date where BoC
 Valet market data exists, and compare how the curve and a swap's risk
-profile actually looked across real historical episodes -- e.g. "here's
+profile actually looked across real historical episodes - e.g. "here's
 what a 5Y CORRA OIS looked like in March 2020 vs. March 2022 vs. October
 2023 vs. today."
 
@@ -36,14 +36,14 @@ from corra_pricer.pricing_engine.ois_swap import CorraOISSwap
 from corra_pricer.risk_engine.risk_engine import build_risk_report
 from corra_pricer.risk_engine.risk_report import RiskReport
 
-# Real, well-known episodes in Canadian rates markets -- actual calendar
+# Real, well-known episodes in Canadian rates markets - actual calendar
 # dates, not synthetic scenarios. Confirmed available in the BoC Valet
 # API's history (CORRA and benchmark yield series both extend back well
 # before 2020). Kept as a full timeline (not just 3-4 checkpoints) so the
 # Historical Replay page can animate a real multi-year progression rather
 # than a handful of snapshots.
 EXAMPLE_DATES = {
-    # Listed in chronological order -- the Historical Replay page's timeline/
+    # Listed in chronological order - the Historical Replay page's timeline/
     # animation plays through dict insertion order, so this ordering matters.
     "march_2020": dt.date(2020, 3, 23),         # depths of the COVID crash / emergency cuts
     "qe_2020": dt.date(2020, 6, 1),             # BoC's Government Bond Purchase Program in full swing
@@ -97,7 +97,7 @@ def build_historical_curve(as_of_date: dt.date, interpolation: str = "linear") -
     snapshot = fetch_market_snapshot_for_date(as_of_date)
     curve = bootstrap_zero_curve(
         snapshot["corra_pct"], snapshot["yields_pct"], interpolation=interpolation,
-        label=f"GoC-proxy OIS curve as of {snapshot['yields_data_date']}",
+        label=f"GoC-Proxy OIS Zero Curve as of {snapshot['yields_data_date']}",
     )
     return curve, snapshot
 
@@ -149,18 +149,18 @@ def price_swap_as_of(
     """Prices a fresh tenor_years CORRA OIS struck on as_of_date, using that
     date's actual historical market data. If fixed_rate is omitted, the
     swap is priced at that date's fair (par) rate. Returns NPV, fair rate,
-    and a full Module-4 risk report -- all computed by the existing pricer
+    and a full Module-4 risk report - all computed by the existing pricer
     and risk engine, unchanged.
 
     Convention parameters (fixed_leg_daycount, business_day_convention,
     calendar_name, stub) and start-date parameters (spot_lag_days,
     effective_date_override, use_imm_start) give this function the same
-    swap-configuration surface as the Pricing page's build_swap() -- every
+    swap-configuration surface as the Pricing page's build_swap() - every
     default reproduces the platform's original as_of_date-is-also-
     effective-date behavior exactly, so existing callers are unaffected.
 
     as_of_date always remains the market-data reference date (the date
-    whose curve is used) -- effective_date_override/spot_lag_days/
+    whose curve is used) - effective_date_override/spot_lag_days/
     use_imm_start only move the swap's *own* start date, mirroring how the
     Pricing page lets trade date and effective date diverge (spot lag,
     forward start, IMM start) without changing which market snapshot
@@ -220,7 +220,7 @@ def compare_historical_dates(
     {label: dt.date} dict (labels become the 'label' column). Every swap-
     configuration parameter (day count, stub, business day convention,
     calendar, spot lag, IMM start) is applied identically across all dates
-    -- the same swap configuration, compared through time, same as picking
+    - the same swap configuration, compared through time, same as picking
     one configuration on the Pricing page and asking "how would this exact
     swap have looked on each of these historical dates.\""""
     if isinstance(dates, dict):
@@ -246,7 +246,7 @@ def compare_example_dates(tenor_years: int = 5, notional: float = 10_000_000,
                            fixed_rate: float | None = None, pay_fixed: bool = True,
                            include_today: bool = True) -> pd.DataFrame:
     """Convenience wrapper around EXAMPLE_DATES (+ 'today', the latest
-    available data date) -- the exact "March 2020 vs March 2022 vs October
+    available data date) - the exact "March 2020 vs March 2022 vs October
     2023 vs today" comparison this module exists to produce."""
     dates = dict(EXAMPLE_DATES)
     if include_today:

@@ -2,7 +2,7 @@
 ShockedCurve: wraps a base YieldCurve with an additive, continuous zero-rate
 shock function of time. This is what makes bump-and-reprice risk correct:
 a shock must apply at every query time the pricer touches (payment dates,
-leg start/end), not just at the curve's discrete bootstrap nodes -- a swap's
+leg start/end), not just at the curve's discrete bootstrap nodes - a swap's
 cashflow dates rarely land exactly on a curve node.
 
 Used by risk_engine.py for parallel shifts (DV01, convexity) and key-rate
@@ -36,7 +36,7 @@ class ShockedCurve:
 
 
 def parallel_shift(curve, bump_bp: float, label: str | None = None) -> ShockedCurve:
-    """Shifts the zero rate by bump_bp at every maturity -- a true parallel shift,
+    """Shifts the zero rate by bump_bp at every maturity - a true parallel shift,
     unlike YieldCurve.with_parallel_shift which only moves the discrete nodes
     (and therefore only approximately parallel-shifts interpolated points)."""
     shock = bump_bp / 10_000.0

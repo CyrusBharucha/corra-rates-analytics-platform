@@ -5,7 +5,7 @@ from pathlib import Path
 def _ensure_project_root_on_path() -> None:
     # Streamlit sets sys.path[0] to this script's own directory, not the
     # project root, so `corra_pricer.*` imports fail unless we fix that up
-    # first -- before any corra_pricer import can happen.
+    # first - before any corra_pricer import can happen.
     for parent in Path(__file__).resolve().parents:
         if (parent / "corra_pricer").is_dir() and (parent / "requirements.txt").exists():
             if str(parent) not in sys.path:
@@ -40,7 +40,7 @@ st.markdown(
         <div class="standfirst">A pricing and risk analytics terminal for Canadian CORRA overnight
         indexed swaps.</div>
         <div class="byline">
-            <span>Built by <b>Cyrus Bharucha</b> &middot; University of Waterloo / Wilfrid Laurier University</span>
+            <span>Designed &amp; Developed by <b>Cyrus Bharucha</b> &middot; University of Waterloo / Wilfrid Laurier University</span>
             <span class="byline-links">
                 <a href="https://www.linkedin.com/in/cyrus-bharucha" target="_blank" rel="noopener">LinkedIn</a>
                 <a href="https://github.com/CyrusBharucha/corra-rates-analytics-platform" target="_blank" rel="noopener">GitHub repository</a>
@@ -53,10 +53,10 @@ st.markdown(
 st.markdown(
     """<div class="editors-note">
         Interest rate swaps are among the most widely used instruments for managing interest-rate
-        exposure. I built this platform to demonstrate the full workflow for a Canadian CORRA
-        overnight indexed swap, from market data and curve construction through valuation, risk,
+        exposure. The platform demonstrates the complete workflow for pricing and risk managing Canadian CORRA
+        overnight indexed swaps, from market data and curve construction through valuation, risk,
         stress testing, and historical replay, with a pricing engine implemented entirely in
-        Python. Every number on these pages traces back to a formula in this repository.
+        Python. Every calculation on this platform traces back to documented pricing and risk methodologies in the repository.
     </div>""",
     unsafe_allow_html=True,
 )
@@ -82,9 +82,9 @@ try:
         unsafe_allow_html=True,
     )
 
-    st.markdown('<div class="kicker">Today&rsquo;s discounting curve</div>', unsafe_allow_html=True)
+    st.markdown('<div class="kicker" style="margin-bottom: 14px;">Current GoC-Proxy OIS Zero Curve</div>', unsafe_allow_html=True)
     curve = data_access.get_current_curve(interpolation="linear")
-    st.plotly_chart(charts.plot_yield_curve(curve, label="GoC-proxy OIS curve"),
+    st.plotly_chart(charts.plot_yield_curve(curve, label="GoC-Proxy OIS Zero Curve"),
                      use_container_width=True, config=charts.PLOTLY_CONFIG)
 except Exception as exc:
     st.warning(f"Could not reach the Bank of Canada Valet API right now: {exc}")
@@ -100,7 +100,7 @@ nav_items = [
     ("pages/4_Scenarios.py", "Scenarios",
      "41 named shocks, user-defined key-rate shocks, and Monte Carlo stress testing."),
     ("pages/5_Historical_Replay.py", "Historical Replay",
-     "Re-price the same swap across the 2020–25 cycle on real Bank of Canada data."),
+     "Re-price the same swap across the 2020-25 cycle on real Bank of Canada data."),
     ("pages/6_Documentation.py", "Documentation",
      "Architecture, methodology, and every simplification stated plainly."),
 ]
@@ -125,9 +125,7 @@ st.markdown(
         <p>Risk is measured by bump-and-reprice rather than analytic derivatives, so every DV01,
         key-rate DV01 and convexity figure can be reproduced by shocking the curve and revaluing.
         The full stack is covered by 270 automated tests.</p>
-        <p>One disclosure worth stating plainly: live CORRA OIS quotes are not public, since they
-        sit behind Bloomberg and Refinitiv, so the discounting curve is bootstrapped from
-        published Government of Canada benchmark yields and used, openly, as an OIS proxy.</p>
+        <p><strong>Note:</strong> Live CORRA OIS quotes are proprietary and therefore unavailable publicly. The platform bootstraps an OIS proxy curve from published Government of Canada benchmark yields.</p>
     </div>""",
     unsafe_allow_html=True,
 )

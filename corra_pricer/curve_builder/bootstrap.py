@@ -14,13 +14,15 @@ Gap handling: intermediate coupon dates that fall between the last
 bootstrapped node and the node currently being solved for (e.g. pricing the
 10Y node uses coupons at 7.5Y, 8.5Y, 9.5Y, which sit beyond the 7Y node) are
 priced using linear interpolation between the last known node and the node
-being solved -- i.e. the unknown zero rate at the new node is used for both
+being solved - i.e. the unknown zero rate at the new node is used for both
 the final cashflow AND the intervening coupons, and we root-find for the
 zero rate that makes the bond price to par. This is the standard
 self-consistent single-pass bootstrap (equivalent to what a manual
 bootstrap does when coupon dates don't line up with quoted maturities).
 """
 from __future__ import annotations
+
+import math
 
 import numpy as np
 from scipy.optimize import brentq
@@ -61,7 +63,7 @@ def bootstrap_zero_curve(
     tenor_years: dict[str, float] | None = None,
     coupon_freq: int = 2,
     interpolation: str = "linear",
-    label: str = "GoC-proxy OIS curve",
+    label: str = "GoC-Proxy OIS Zero Curve",
 ) -> YieldCurve:
     tenor_years = tenor_years or DEFAULT_TENOR_YEARS
 
@@ -70,7 +72,8 @@ def bootstrap_zero_curve(
 
     ordered_tenors = sorted(tenor_years.items(), key=lambda kv: kv[1])
     for name, maturity in ordered_tenors:
-        if name not in benchmark_yields_pct or benchmark_yields_pct[name] is None:
+        v = benchmark_yields_pct.get(name)
+        if v is None or (isinstance(v, float) and math.isnan(v)):
             continue
         par_yield = benchmark_yields_pct[name] / 100.0
         coupon = par_yield / coupon_freq
@@ -102,7 +105,7 @@ def bootstrap_zero_curve(
                 f"No discount factor exists for the {name} ({maturity}Y) node that reprices "
                 f"its par bond to 100, even scanning zero rates from -90% to +300%. This means "
                 f"the PV of coupons implied by already-bootstrapped shorter nodes already exceeds "
-                f"par on its own -- typically a sign of internally inconsistent/non-arbitrage-free "
+                f"par on its own - typically a sign of internally inconsistent/non-arbitrage-free "
                 f"input yields (e.g. unrealistically extreme rates), not a solver failure."
             ) from exc
 
@@ -119,21 +122,22 @@ def reprice_par_bonds(
     coupon_freq: int = 2,
 ) -> dict[str, float]:
     """Reprices each input par bond off an already-built curve and returns
-    {tenor: price - 100} residuals -- should be ~0 for every tenor if the
+    {tenor: price - 100} residuals - should be ~0 for every tenor if the
     curve is self-consistent. This validates the curve as actually
     delivered to callers (i.e. through curve.discount_factor(), using
     whichever interpolation method the curve was built with), which is a
     meaningfully different check from the bootstrap's own internal
     construction-time gap handling (bond_price_error above always uses
     linear-on-zero-rate for gap coupons regardless of the curve's final
-    interpolation method) -- so a cubic-spline or log-linear-DF curve can
+    interpolation method) - so a cubic-spline or log-linear-DF curve can
     show a small nonzero residual here even though the bootstrap itself
     solved each node exactly.
     """
     tenor_years = tenor_years or DEFAULT_TENOR_YEARS
     residuals = {}
     for name, maturity in tenor_years.items():
-        if name not in benchmark_yields_pct or benchmark_yields_pct[name] is None:
+        v = benchmark_yields_pct.get(name)
+        if v is None or (isinstance(v, float) and math.isnan(v)):
             continue
         par_yield = benchmark_yields_pct[name] / 100.0
         coupon = par_yield / coupon_freq

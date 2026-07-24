@@ -1,7 +1,7 @@
 """
 The ONLY module in the dashboard that touches corra_pricer's backend
 directly. Every page imports from here (plus charts.py/tables.py for pure
-presentation) -- nothing in pages/ calls market_data, curve_builder,
+presentation) - nothing in pages/ calls market_data, curve_builder,
 pricing_engine, risk_engine, scenario_engine, or analytics directly, and
 nothing here re-implements any of their math. This module's only job is
 (a) thin pass-throughs to the real functions and (b) a Streamlit caching
@@ -49,6 +49,8 @@ PAYMENT_FREQUENCIES = {"Annual": 1, "Semiannual": 2, "Quarterly": 4, "Monthly": 
 DAYCOUNT_CHOICES = list(DAYCOUNT_CONVENTIONS.keys())
 BUSINESS_DAY_CONVENTION_CHOICES = list(BUSINESS_DAY_CONVENTIONS.keys())
 CALENDAR_CHOICES = list(CALENDARS.keys())
+CALENDAR_LABELS = {"Canada": "Toronto (Canada)", "TARGET": "Frankfurt (TARGET/Euro Area)",
+                   "Weekend Only": "Weekend Only (no holidays)"}
 STUB_CHOICES = ["short_first", "long_first", "short_last", "long_last"]
 INTERPOLATION_LABELS = {"linear": "Linear", "log_linear_df": "Log-Linear DF", "cubic_spline": "Cubic Spline"}
 STUB_LABELS = {
@@ -61,7 +63,7 @@ SCENARIO_CATEGORY_LABELS = {
 }
 
 # The engine keys scenarios by snake_case identifier (inflation_shock, boc_surprise_hike).
-# Those are storage keys, not display text -- these helpers turn them into the
+# Those are storage keys, not display text - these helpers turn them into the
 # reader-facing labels used in every dropdown, chart axis and table.
 _SCENARIO_WORD_FIXES = {"boc": "BoC", "covid": "COVID", "qe": "QE", "qt": "QT"}
 
@@ -102,8 +104,8 @@ def get_current_curve(interpolation: str = "linear") -> YieldCurve:
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_prior_day_snapshot() -> dict:
     """Yesterday's market snapshot, for computing day-over-day deltas.
-    Reuses Module 8's fetch_market_snapshot_for_date() -- the same
-    nearest-available-date resolution used for historical replay -- so a
+    Reuses Module 8's fetch_market_snapshot_for_date() - the same
+    nearest-available-date resolution used for historical replay - so a
     request for "yesterday" on a Monday correctly resolves to Friday's
     close rather than erroring on a weekend gap."""
     yesterday = dt.date.today() - dt.timedelta(days=1)
@@ -164,7 +166,7 @@ def get_extended_risk_metrics(swap: CorraOISSwap, curve: YieldCurve) -> dict:
 def get_krd_heatmap_data(curve: YieldCurve, notional: float, fixed_rate: float, pay_fixed: bool,
                           tenors_years: list[int] | None = None) -> dict:
     """KRD for a range of swap tenors, all struck today at the given fixed
-    rate/notional -- shows where risk concentrates on the curve for
+    rate/notional - shows where risk concentrates on the curve for
     different-maturity swaps. Composes build_swap() + compute_krd(), both
     pre-existing; no new pricing logic."""
     tenors_years = tenors_years or [1, 2, 5, 10, 20, 30]

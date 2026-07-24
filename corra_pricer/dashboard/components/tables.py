@@ -1,6 +1,6 @@
 """
 Table formatters. Each function takes an already-computed backend object
-and returns a display-ready pandas DataFrame -- formatting only, no
+and returns a display-ready pandas DataFrame - formatting only, no
 computation.
 """
 from __future__ import annotations
@@ -28,7 +28,7 @@ def format_cashflow_table(swap) -> pd.DataFrame:
 
 def format_cashflow_schedule(swap, curve) -> pd.DataFrame:
     """The full fixed-leg payment schedule with discount factors and PV per
-    period -- the same building blocks fixed_leg_pv() already sums, just
+    period - the same building blocks fixed_leg_pv() already sums, just
     broken out row by row instead of collapsed to one total. Composes
     year_fraction() + curve.discount_factor(), both pre-existing public
     functions; no new pricing logic."""
@@ -42,7 +42,7 @@ def format_cashflow_schedule(swap, curve) -> pd.DataFrame:
             "Accrual Start": cf["start"],
             "Accrual End": cf["end"],
             "Payment Date": cf["end"],
-            "Accrual Factor": round(cf["accrual"], 4),
+            "Accrual Factor (yrs)": round(cf["accrual"], 4),
             "Discount Factor": round(df_t, 6),
             "Fixed Cashflow ($)": round(cf["amount"], 2),
             "PV ($)": round(cf["amount"] * df_t, 2),
@@ -63,6 +63,8 @@ _SCENARIO_COLUMNS = {
     "npv_before": "NPV before ($)",
     "npv_after": "NPV after ($)",
     "npv_change": "NPV change ($)",
+    "dv01_before": "DV01 before ($/bp)",
+    "dv01_after": "DV01 after ($/bp)",
     "dv01_change": "DV01 change ($/bp)",
     "attribution_total": "KRD attribution ($)",
     "attribution_residual": "Convexity residual ($)",
